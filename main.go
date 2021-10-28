@@ -22,8 +22,8 @@ func CamelToSnakeCase(str string) string {
 
 	var snakeCase strings.Builder
 	for i := 0; i < len(runes); i++ {
-		if i > 0 && isUpperOrNumber[i] && unicode.IsLower(runes[i-1]) ||
-			i > 1 && i < len(runes)-1 && isUpperOrNumber[i] && isUpperOrNumber[i-1] && !isUpperOrNumber[i+1] {
+		if isUpperOrNumber[i] && (i > 0 && unicode.IsLower(runes[i-1]) ||
+			i > 1 && i < len(runes)-1 && isUpperOrNumber[i-1] && !isUpperOrNumber[i+1]) {
 			snakeCase.WriteRune('_')
 		}
 		snakeCase.WriteRune(unicode.ToLower(runes[i]))
@@ -85,7 +85,7 @@ func main() {
 			exitWithError(errors.Wrapf(err, "failed to generate builder code for '%s:%s'", file.Name, file.Target))
 		}
 
-		fmt.Printf("Generating file '%s'...", file.OutputName())
+		fmt.Printf("Generating '%s'...\n", file.OutputName())
 		if err := os.WriteFile(file.OutputName(), generatedCode, 0666); err != nil {
 			exitWithError(errors.Wrapf(err, "failed to write builder code to '%s'", file.OutputName()))
 		}

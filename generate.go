@@ -151,7 +151,7 @@ func generate(target string, file *ast.File) ([]byte, error) {
 
 	// Generate code
 	templateData := _builderTemplateData{
-		Package: "test", // TODO: find package name
+		Package: file.Name.String(),
 		Target:  target,
 		Fields:  fields,
 	}

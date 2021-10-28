@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func Test_camelToSnakeCase(t *testing.T) {
+func Test_CamelToSnakeCase(t *testing.T) {
 	type _testDescription struct {
 		Input       string
 		Expected    string
