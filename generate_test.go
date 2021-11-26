@@ -148,6 +148,11 @@ func Test_unexported(t *testing.T) {
 			Expected:    "_uint64",
 			Description: "If the unexported name would be a pre-defined type, it should be prefixed",
 		},
+		{
+			Identifier:  "UUID",
+			Expected:    "uuid",
+			Description: "All upper-case identifiers should be converted to all lower-case",
+		},
 	}
 
 	for i := range tests {
