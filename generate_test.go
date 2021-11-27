@@ -13,7 +13,10 @@ import (
 func Test_structTypeFinder_Visit_ShouldFindTargetStructType(t *testing.T) {
 	// GIVEN a struct declaration node
 	const structName = "TestStruct"
-	var structType = structTypeWithFields(map[string]ast.Expr{"Foo": ast.NewIdent("int"), "Bar": ast.NewIdent("string")})
+	var structType = structTypeWithFields([]_structField{
+		{Name: "Foo", Type: ast.NewIdent("int")},
+		{Name: "Bar", Type: ast.NewIdent("string")},
+	})
 	node := &ast.TypeSpec{
 		Name: ast.NewIdent(structName),
 		Type: structType,
@@ -32,7 +35,10 @@ func Test_structTypeFinder_Visit_ShouldFindTargetStructType(t *testing.T) {
 
 func Test_structTypeFinder_Visit_ShouldSkipStructTypeWithWrongName(t *testing.T) {
 	// GIVEN a struct declaration node
-	var structType = structTypeWithFields(map[string]ast.Expr{"Foo": ast.NewIdent("int"), "Bar": ast.NewIdent("string")})
+	var structType = structTypeWithFields([]_structField{
+		{Name: "Foo", Type: ast.NewIdent("int")},
+		{Name: "Bar", Type: ast.NewIdent("string")},
+	})
 	node := &ast.TypeSpec{
 		Name: ast.NewIdent("NotTargetStruct"),
 		Type: structType,
@@ -69,6 +75,48 @@ func Test_structTypeFinder_Visit_ShouldSkipIrrelevantNodes(t *testing.T) {
 	}
 }
 
+func Test_parseFieldOptions(t *testing.T) {
+	type _testDescription struct {
+		Tag         string
+		Expected    _fieldOptions
+		Description string
+	}
+
+	tests := []_testDescription{
+		{
+			Tag:         "",
+			Expected:    _fieldOptions{},
+			Description: "Empty options should be valid",
+		},
+		{
+			Tag:         "  \t ",
+			Expected:    _fieldOptions{},
+			Description: "Should ignore whitespace",
+		},
+		{
+			Tag:         "ignore",
+			Expected:    _fieldOptions{Ignore: true},
+			Description: "Should recognise 'ignore' option",
+		},
+	}
+
+	for i := range tests {
+		test := tests[i]
+		t.Run(test.Description, func(t *testing.T) {
+			options, err := parseFieldOptions(test.Tag)
+
+			assert.Nil(t, err)
+			assert.Equal(t, test.Expected, options)
+		})
+	}
+}
+
+func Test_parseFieldOptions_UnknownOption(t *testing.T) {
+	_, err := parseFieldOptions("ignore,foobar")
+
+	assert.EqualError(t, err, "invalid field option 'foobar'")
+}
+
 func Test_extractFieldData(t *testing.T) {
 	type _testDescription struct {
 		StructType  *ast.StructType
@@ -83,23 +131,33 @@ func Test_extractFieldData(t *testing.T) {
 			Description: "Should not fail if struct type is nil",
 		},
 		{
-			StructType: structTypeWithFields(map[string]ast.Expr{
-				"foo": ast.NewIdent("int"),
-				"Bar": ast.NewIdent("string"),
+			StructType: structTypeWithFields([]_structField{
+				{Name: "foo", Type: ast.NewIdent("int")},
+				{Name: "Bar", Type: ast.NewIdent("string")},
 			}),
 			Expected:    []_fieldData{{Name: "Bar", Type: "string"}},
 			Description: "Should only include exported fields",
 		},
 		{
-			StructType: structTypeWithFields(map[string]ast.Expr{
-				"SomeArray":   &ast.ArrayType{Elt: ast.NewIdent("float")},
-				"SomeChannel": &ast.ChanType{Dir: ast.SEND, Value: ast.NewIdent("int")},
-				"SomeMap":     &ast.MapType{Key: ast.NewIdent("string"), Value: ast.NewIdent("int")},
-				"SomePointer": &ast.StarExpr{X: ast.NewIdent("User")},
+			StructType: structTypeWithFields([]_structField{
+				{Name: "Omit", Type: ast.NewIdent("bool"), Tag: `builder:"ignore"`},
+				{Name: "Include", Type: ast.NewIdent("int")},
+			}),
+			Expected:    []_fieldData{{Name: "Include", Type: "int"}},
+			Description: "Should not include ignored fields",
+		},
+		{
+			StructType: structTypeWithFields([]_structField{
+				{Name: "SomeArray", Type: &ast.ArrayType{Elt: ast.NewIdent("float")}},
+				{Name: "SomeSendChannel", Type: &ast.ChanType{Dir: ast.SEND, Value: ast.NewIdent("int")}},
+				{Name: "SomeRecvChannel", Type: &ast.ChanType{Dir: ast.RECV, Value: ast.NewIdent("string")}},
+				{Name: "SomeMap", Type: &ast.MapType{Key: ast.NewIdent("string"), Value: ast.NewIdent("int")}},
+				{Name: "SomePointer", Type: &ast.StarExpr{X: ast.NewIdent("User")}},
 			}),
 			Expected: []_fieldData{
 				{Name: "SomeArray", Type: "[]float"},
-				{Name: "SomeChannel", Type: "chan<- int"},
+				{Name: "SomeSendChannel", Type: "chan<- int"},
+				{Name: "SomeRecvChannel", Type: "<-chan string"},
 				{Name: "SomeMap", Type: "map[string]int"},
 				{Name: "SomePointer", Type: "*User"},
 			},
@@ -110,7 +168,10 @@ func Test_extractFieldData(t *testing.T) {
 	for i := range tests {
 		test := tests[i]
 		t.Run(test.Description, func(t *testing.T) {
-			assert.ElementsMatch(t, test.Expected, extractFieldData(test.StructType))
+			fields, err := extractFieldData(test.StructType)
+
+			assert.Nil(t, err)
+			assert.ElementsMatch(t, test.Expected, fields)
 		})
 	}
 }

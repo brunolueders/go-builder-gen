@@ -1,13 +1,29 @@
 package main
 
-import "go/ast"
+import (
+	"go/ast"
+)
 
-func structTypeWithFields(fields map[string]ast.Expr) *ast.StructType {
+type _structField struct {
+	Name string
+	Type ast.Expr
+	Tag  string
+}
+
+func (field _structField) tagLiteral() *ast.BasicLit {
+	if field.Tag == "" {
+		return nil
+	}
+	return &ast.BasicLit{Value: field.Tag}
+}
+
+func structTypeWithFields(fields []_structField) *ast.StructType {
 	fieldList := make([]*ast.Field, 0, len(fields))
-	for name, typ := range fields {
+	for _, field := range fields {
 		fieldList = append(fieldList, &ast.Field{
-			Names: []*ast.Ident{{Name: name}},
-			Type:  typ,
+			Names: []*ast.Ident{{Name: field.Name}},
+			Type:  field.Type,
+			Tag:   field.tagLiteral(),
 		})
 	}
 

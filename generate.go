@@ -4,6 +4,7 @@ import (
 	"bytes"
 	_ "embed"
 	"go/ast"
+	"reflect"
 	"strings"
 	"text/template"
 
@@ -37,8 +38,28 @@ func (finder *_structTypeFinder) Visit(node ast.Node) ast.Visitor {
 }
 
 type _fieldData struct {
-	Name string
-	Type string
+	Name    string
+	Type    string
+	Options _fieldOptions
+}
+
+type _fieldOptions struct {
+	Ignore bool
+}
+
+func parseFieldOptions(tag string) (_fieldOptions, error) {
+	var options _fieldOptions
+	for _, token := range strings.Split(tag, ",") {
+		switch strings.TrimSpace(token) {
+		case "":
+			continue
+		case "ignore":
+			options.Ignore = true
+		default:
+			return _fieldOptions{}, errors.Errorf("invalid field option '%s'", strings.TrimSpace(token))
+		}
+	}
+	return options, nil
 }
 
 func getTypeName(fieldType ast.Expr) string {
@@ -65,9 +86,16 @@ func getTypeName(fieldType ast.Expr) string {
 	return ""
 }
 
-func extractFieldData(structType *ast.StructType) []_fieldData {
+func getOptions(tag *ast.BasicLit) (_fieldOptions, error) {
+	if tag == nil {
+		return _fieldOptions{}, nil
+	}
+	return parseFieldOptions(reflect.StructTag(tag.Value).Get("builder"))
+}
+
+func extractFieldData(structType *ast.StructType) ([]_fieldData, error) {
 	if structType == nil {
-		return nil
+		return nil, nil
 	}
 
 	var fieldData []_fieldData
@@ -81,6 +109,14 @@ func extractFieldData(structType *ast.StructType) []_fieldData {
 			continue
 		}
 
+		options, err := getOptions(field.Tag)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to parse tags of field %s", name)
+		}
+		if options.Ignore {
+			continue
+		}
+
 		typeName := getTypeName(field.Type)
 		if typeName == "" {
 			continue
@@ -91,7 +127,7 @@ func extractFieldData(structType *ast.StructType) []_fieldData {
 			Type: typeName,
 		})
 	}
-	return fieldData
+	return fieldData, nil
 }
 
 var reservedWords = map[string]struct{}{
@@ -139,7 +175,10 @@ func generate(target string, file *ast.File) ([]byte, error) {
 		return nil, errors.Errorf("could not find definition of struct %s", target)
 	}
 
-	fields := extractFieldData(structTypeFinder.StructType)
+	fields, err := extractFieldData(structTypeFinder.StructType)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to extract fields of struct %s", target)
+	}
 
 	// Parse builder template
 	builderTemplate, err := template.New("builder").
