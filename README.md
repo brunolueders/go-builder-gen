@@ -81,3 +81,17 @@ func (builder UserBuilder) Build() *User {
     }
 }
 ~~~
+
+## How to configure
+You can modify the way `go-builder-gen` treats each struct field using the `builder` struct tag.
+Currently, the only available flag is `ignore`, which directs `go-builder-gen` to omit the tagged
+field from the builder.
+
+For example, when run on the `Session` struct below, `go-builder-gen` won't add a `WithExpires`
+method to the generated `SessionBuilder` type:
+~~~go
+type Session struct {
+    Token string
+    Expires time.Time `builder:"ignore"`
+}
+~~~
