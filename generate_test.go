@@ -163,6 +163,19 @@ func Test_extractFieldData(t *testing.T) {
 			},
 			Description: "Should include arrays, channels, maps, and pointers",
 		},
+		{
+			StructType: structTypeWithFields([]_structField{
+				{Name: "SomeUrl", Type: &ast.SelectorExpr{X: ast.NewIdent("url"), Sel: ast.NewIdent("URL")}},
+				{Name: "SomeTimePointer", Type: &ast.StarExpr{X: &ast.SelectorExpr{
+					X: ast.NewIdent("time"), Sel: ast.NewIdent("Time"),
+				}}},
+			}),
+			Expected: []_fieldData{
+				{Name: "SomeUrl", Type: "url.URL"},
+				{Name: "SomeTimePointer", Type: "*time.Time"},
+			},
+			Description: "Should include field types imported from other packages",
+		},
 	}
 
 	for i := range tests {

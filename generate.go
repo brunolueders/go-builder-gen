@@ -62,17 +62,33 @@ func parseFieldOptions(tag string) (_fieldOptions, error) {
 	return options, nil
 }
 
-func getTypeName(fieldType ast.Expr) string {
+func getTypeName(fieldType ast.Expr) (string, error) {
 	switch fieldType.(type) {
 	case *ast.Ident:
-		return fieldType.(*ast.Ident).Name
+		return fieldType.(*ast.Ident).Name, nil
 	case *ast.ArrayType:
-		return "[]" + getTypeName(fieldType.(*ast.ArrayType).Elt)
+		elementTypeName, err := getTypeName(fieldType.(*ast.ArrayType).Elt)
+		if err != nil {
+			return "", err
+		}
+		return "[]" + elementTypeName, nil
 	case *ast.StarExpr:
-		return "*" + getTypeName(fieldType.(*ast.StarExpr).X)
+		elementTypeName, err := getTypeName(fieldType.(*ast.StarExpr).X)
+		if err != nil {
+			return "", err
+		}
+		return "*" + elementTypeName, nil
 	case *ast.MapType:
 		mapType := fieldType.(*ast.MapType)
-		return "map[" + getTypeName(mapType.Key) + "]" + getTypeName(mapType.Value)
+		keyTypeName, err := getTypeName(mapType.Key)
+		if err != nil {
+			return "", err
+		}
+		valueTypeName, err := getTypeName(mapType.Value)
+		if err != nil {
+			return "", err
+		}
+		return "map[" + keyTypeName + "]" + valueTypeName, nil
 	case *ast.ChanType:
 		chanType := fieldType.(*ast.ChanType)
 		var keyword string
@@ -81,9 +97,22 @@ func getTypeName(fieldType ast.Expr) string {
 		} else {
 			keyword = "chan<-"
 		}
-		return keyword + " " + getTypeName(chanType.Value)
+
+		elementTypeName, err := getTypeName(chanType.Value)
+		if err != nil {
+			return "", err
+		}
+		return keyword + " " + elementTypeName, nil
+	case *ast.SelectorExpr:
+		selectorType := fieldType.(*ast.SelectorExpr)
+		typeIdent, ok := selectorType.X.(*ast.Ident)
+		if !ok {
+			return "", errors.New("malformed type")
+		}
+		return typeIdent.Name + "." + selectorType.Sel.Name, nil
 	}
-	return ""
+
+	return "", errors.New("unsupported type")
 }
 
 func getOptions(tag *ast.BasicLit) (_fieldOptions, error) {
@@ -117,9 +146,9 @@ func extractFieldData(structType *ast.StructType) ([]_fieldData, error) {
 			continue
 		}
 
-		typeName := getTypeName(field.Type)
-		if typeName == "" {
-			continue
+		typeName, err := getTypeName(field.Type)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to determine type of field %s", name)
 		}
 
 		fieldData = append(fieldData, _fieldData{
