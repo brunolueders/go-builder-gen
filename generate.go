@@ -4,6 +4,8 @@ import (
 	"bytes"
 	_ "embed"
 	"go/ast"
+	"go/printer"
+	"go/token"
 	"reflect"
 	"strings"
 	"text/template"
@@ -62,57 +64,12 @@ func parseFieldOptions(tag string) (_fieldOptions, error) {
 	return options, nil
 }
 
-func getTypeName(fieldType ast.Expr) (string, error) {
-	switch fieldType.(type) {
-	case *ast.Ident:
-		return fieldType.(*ast.Ident).Name, nil
-	case *ast.ArrayType:
-		elementTypeName, err := getTypeName(fieldType.(*ast.ArrayType).Elt)
-		if err != nil {
-			return "", err
-		}
-		return "[]" + elementTypeName, nil
-	case *ast.StarExpr:
-		elementTypeName, err := getTypeName(fieldType.(*ast.StarExpr).X)
-		if err != nil {
-			return "", err
-		}
-		return "*" + elementTypeName, nil
-	case *ast.MapType:
-		mapType := fieldType.(*ast.MapType)
-		keyTypeName, err := getTypeName(mapType.Key)
-		if err != nil {
-			return "", err
-		}
-		valueTypeName, err := getTypeName(mapType.Value)
-		if err != nil {
-			return "", err
-		}
-		return "map[" + keyTypeName + "]" + valueTypeName, nil
-	case *ast.ChanType:
-		chanType := fieldType.(*ast.ChanType)
-		var keyword string
-		if chanType.Dir == ast.RECV {
-			keyword = "<-chan"
-		} else {
-			keyword = "chan<-"
-		}
-
-		elementTypeName, err := getTypeName(chanType.Value)
-		if err != nil {
-			return "", err
-		}
-		return keyword + " " + elementTypeName, nil
-	case *ast.SelectorExpr:
-		selectorType := fieldType.(*ast.SelectorExpr)
-		typeIdent, ok := selectorType.X.(*ast.Ident)
-		if !ok {
-			return "", errors.New("malformed type")
-		}
-		return typeIdent.Name + "." + selectorType.Sel.Name, nil
+func getTypeName(fieldType ast.Expr, fileSet *token.FileSet) (string, error) {
+	var buffer bytes.Buffer
+	if err := printer.Fprint(&buffer, fileSet, fieldType); err != nil {
+		return "", errors.Wrap(err, "failed to format type expression")
 	}
-
-	return "", errors.New("unsupported type")
+	return buffer.String(), nil
 }
 
 func getOptions(tag *ast.BasicLit) (_fieldOptions, error) {
@@ -122,7 +79,7 @@ func getOptions(tag *ast.BasicLit) (_fieldOptions, error) {
 	return parseFieldOptions(reflect.StructTag(tag.Value).Get("builder"))
 }
 
-func extractFieldData(structType *ast.StructType) ([]_fieldData, error) {
+func extractFieldData(structType *ast.StructType, fileSet *token.FileSet) ([]_fieldData, error) {
 	if structType == nil {
 		return nil, nil
 	}
@@ -146,7 +103,7 @@ func extractFieldData(structType *ast.StructType) ([]_fieldData, error) {
 			continue
 		}
 
-		typeName, err := getTypeName(field.Type)
+		typeName, err := getTypeName(field.Type, fileSet)
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to determine type of field %s", name)
 		}
@@ -197,15 +154,15 @@ type _builderTemplateData struct {
 	Fields  []_fieldData
 }
 
-func generate(target string, file *ast.File) ([]byte, error) {
+func generate(target string, file *InputFile) ([]byte, error) {
 	// Find target struct definition
 	structTypeFinder := newStructTypeFinder(target)
-	ast.Walk(structTypeFinder, file)
+	ast.Walk(structTypeFinder, file.File)
 	if structTypeFinder.StructType == nil {
 		return nil, errors.Errorf("could not find definition of struct %s", target)
 	}
 
-	fields, err := extractFieldData(structTypeFinder.StructType)
+	fields, err := extractFieldData(structTypeFinder.StructType, file.FileSet)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to extract fields of struct %s", target)
 	}
@@ -220,7 +177,7 @@ func generate(target string, file *ast.File) ([]byte, error) {
 
 	// Generate code
 	templateData := _builderTemplateData{
-		Package: file.Name.String(),
+		Package: file.File.Name.String(),
 		Target:  target,
 		Fields:  fields,
 	}

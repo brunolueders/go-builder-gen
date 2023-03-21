@@ -32,9 +32,10 @@ func CamelToSnakeCase(str string) string {
 }
 
 type InputFile struct {
-	Name   string
-	Target string
-	File   *ast.File
+	Name    string
+	Target  string
+	File    *ast.File
+	FileSet *token.FileSet
 }
 
 func (file InputFile) OutputName() string {
@@ -60,9 +61,10 @@ func loadFiles(inputs []string) ([]InputFile, error) {
 		}
 
 		files = append(files, InputFile{
-			Name:   parts[0],
-			Target: parts[1],
-			File:   file,
+			Name:    parts[0],
+			Target:  parts[1],
+			File:    file,
+			FileSet: fileSet,
 		})
 	}
 	return files, nil
@@ -80,7 +82,7 @@ func main() {
 	}
 
 	for _, file := range files {
-		generatedCode, err := generate(file.Target, file.File)
+		generatedCode, err := generate(file.Target, &file)
 		if err != nil {
 			exitWithError(errors.Wrapf(err, "failed to generate builder code for '%s:%s'", file.Name, file.Target))
 		}

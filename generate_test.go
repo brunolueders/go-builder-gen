@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"go/ast"
+	"go/token"
 	"reflect"
 	"testing"
 	"text/template"
@@ -151,6 +152,7 @@ func Test_extractFieldData(t *testing.T) {
 				{Name: "SomeArray", Type: &ast.ArrayType{Elt: ast.NewIdent("float")}},
 				{Name: "SomeSendChannel", Type: &ast.ChanType{Dir: ast.SEND, Value: ast.NewIdent("int")}},
 				{Name: "SomeRecvChannel", Type: &ast.ChanType{Dir: ast.RECV, Value: ast.NewIdent("string")}},
+				{Name: "SomeDuplexChannel", Type: &ast.ChanType{Dir: ast.SEND | ast.RECV, Value: ast.NewIdent("string")}},
 				{Name: "SomeMap", Type: &ast.MapType{Key: ast.NewIdent("string"), Value: ast.NewIdent("int")}},
 				{Name: "SomePointer", Type: &ast.StarExpr{X: ast.NewIdent("User")}},
 			}),
@@ -158,6 +160,7 @@ func Test_extractFieldData(t *testing.T) {
 				{Name: "SomeArray", Type: "[]float"},
 				{Name: "SomeSendChannel", Type: "chan<- int"},
 				{Name: "SomeRecvChannel", Type: "<-chan string"},
+				{Name: "SomeDuplexChannel", Type: "chan string"},
 				{Name: "SomeMap", Type: "map[string]int"},
 				{Name: "SomePointer", Type: "*User"},
 			},
@@ -181,7 +184,7 @@ func Test_extractFieldData(t *testing.T) {
 	for i := range tests {
 		test := tests[i]
 		t.Run(test.Description, func(t *testing.T) {
-			fields, err := extractFieldData(test.StructType)
+			fields, err := extractFieldData(test.StructType, token.NewFileSet())
 
 			assert.Nil(t, err)
 			assert.ElementsMatch(t, test.Expected, fields)
