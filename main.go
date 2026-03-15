@@ -9,8 +9,6 @@ import (
 	"path"
 	"strings"
 	"unicode"
-
-	"github.com/pkg/errors"
 )
 
 func CamelToSnakeCase(str string) string {
@@ -52,12 +50,12 @@ func loadFiles(inputs []string) ([]InputFile, error) {
 	for _, input := range inputs {
 		parts := strings.SplitN(input, ":", 2)
 		if len(parts) != 2 {
-			return nil, errors.Errorf("'%s' is not in the format FILE:TARGET_STRUCT", input)
+			return nil, fmt.Errorf("'%s' is not in the format FILE:TARGET_STRUCT", input)
 		}
 
 		file, err := parser.ParseFile(fileSet, parts[0], nil, parser.SkipObjectResolution)
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to parse file '%s'", parts[0])
+			return nil, fmt.Errorf("failed to parse file '%s': %w", parts[0], err)
 		}
 
 		files = append(files, InputFile{
@@ -78,18 +76,18 @@ func exitWithError(err error) {
 func main() {
 	files, err := loadFiles(os.Args[1:])
 	if err != nil {
-		exitWithError(errors.Wrap(err, "failed to load files"))
+		exitWithError(fmt.Errorf("failed to load files: %w", err))
 	}
 
 	for _, file := range files {
 		generatedCode, err := generate(file.Target, &file)
 		if err != nil {
-			exitWithError(errors.Wrapf(err, "failed to generate builder code for '%s:%s'", file.Name, file.Target))
+			exitWithError(fmt.Errorf("failed to generate builder code for '%s:%s': %w", file.Name, file.Target, err))
 		}
 
 		fmt.Printf("Generating '%s'...\n", file.OutputName())
 		if err := os.WriteFile(file.OutputName(), generatedCode, 0666); err != nil {
-			exitWithError(errors.Wrapf(err, "failed to write builder code to '%s'", file.OutputName()))
+			exitWithError(fmt.Errorf("failed to write builder code to '%s': %w", file.OutputName(), err))
 		}
 	}
 }

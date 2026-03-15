@@ -3,14 +3,13 @@ package main
 import (
 	"bytes"
 	_ "embed"
+	"fmt"
 	"go/ast"
 	"go/printer"
 	"go/token"
 	"reflect"
 	"strings"
 	"text/template"
-
-	"github.com/pkg/errors"
 )
 
 type _structTypeFinder struct {
@@ -58,7 +57,7 @@ func parseFieldOptions(tag string) (_fieldOptions, error) {
 		case "ignore":
 			options.Ignore = true
 		default:
-			return _fieldOptions{}, errors.Errorf("invalid field option '%s'", strings.TrimSpace(token))
+			return _fieldOptions{}, fmt.Errorf("invalid field option '%s'", strings.TrimSpace(token))
 		}
 	}
 	return options, nil
@@ -67,7 +66,7 @@ func parseFieldOptions(tag string) (_fieldOptions, error) {
 func getTypeName(fieldType ast.Expr, fileSet *token.FileSet) (string, error) {
 	var buffer bytes.Buffer
 	if err := printer.Fprint(&buffer, fileSet, fieldType); err != nil {
-		return "", errors.Wrap(err, "failed to format type expression")
+		return "", fmt.Errorf("failed to format type expression: %w", err)
 	}
 	return buffer.String(), nil
 }
@@ -98,7 +97,7 @@ func extractFieldData(structType *ast.StructType, fileSet *token.FileSet) ([]_fi
 
 		options, err := getOptions(field.Tag)
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to parse tags of field %s", name)
+			return nil, fmt.Errorf("failed to parse tags of field %s: %w", name, err)
 		}
 		if options.Ignore {
 			continue
@@ -106,7 +105,7 @@ func extractFieldData(structType *ast.StructType, fileSet *token.FileSet) ([]_fi
 
 		typeName, err := getTypeName(field.Type, fileSet)
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to determine type of field %s", name)
+			return nil, fmt.Errorf("failed to determine type of field %s: %w", name, err)
 		}
 
 		fieldData = append(fieldData, _fieldData{
@@ -160,12 +159,12 @@ func generate(target string, file *InputFile) ([]byte, error) {
 	structTypeFinder := newStructTypeFinder(target)
 	ast.Walk(structTypeFinder, file.File)
 	if structTypeFinder.StructType == nil {
-		return nil, errors.Errorf("could not find definition of struct %s", target)
+		return nil, fmt.Errorf("could not find definition of struct %s", target)
 	}
 
 	fields, err := extractFieldData(structTypeFinder.StructType, file.FileSet)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to extract fields of struct %s", target)
+		return nil, fmt.Errorf("failed to extract fields of struct %s: %w", target, err)
 	}
 
 	// Parse builder template
@@ -173,7 +172,7 @@ func generate(target string, file *InputFile) ([]byte, error) {
 		Funcs(template.FuncMap{"unexported": unexported}).
 		Parse(builderTemplateString)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to parse builder template")
+		return nil, fmt.Errorf("failed to parse builder template: %w", err)
 	}
 
 	// Generate code
@@ -185,7 +184,7 @@ func generate(target string, file *InputFile) ([]byte, error) {
 
 	generatedCode := bytes.NewBuffer(nil)
 	if err = builderTemplate.Execute(generatedCode, &templateData); err != nil {
-		return nil, errors.Wrap(err, "failed to generate builder code")
+		return nil, fmt.Errorf("failed to generate builder code: %w", err)
 	}
 	return generatedCode.Bytes(), nil
 }

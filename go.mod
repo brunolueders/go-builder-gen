@@ -1,11 +1,8 @@
 module github.com/brunolueders/go-builder-gen
 
-go 1.19
+go 1.26
 
-require (
-	github.com/pkg/errors v0.9.1
-	github.com/stretchr/testify v1.7.0
-)
+require github.com/stretchr/testify v1.7.0
 
 require (
 	github.com/davecgh/go-spew v1.1.0 // indirect

@@ -27,7 +27,7 @@ go install github.com/brunolueders/go-builder-gen@latest
 ├── main_test.go      # Unit tests for main.go
 ├── helpers_test.go   # Test utilities
 ├── template.gotext   # Embedded Go template for builder code
-├── go.mod            # Go 1.19, dependencies: pkg/errors, stretchr/testify
+├── go.mod            # Go 1.26
 └── README.md         # Usage documentation
 ```
 
@@ -77,5 +77,4 @@ go install github.com/brunolueders/go-builder-gen@latest
 
 ## Dependencies
 
-- `github.com/pkg/errors` - Error wrapping
 - `github.com/stretchr/testify/assert` - Test assertions
