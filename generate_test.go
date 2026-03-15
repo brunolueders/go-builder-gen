@@ -141,7 +141,7 @@ func Test_extractFieldData(t *testing.T) {
 		},
 		{
 			StructType: structTypeWithFields([]_structField{
-				{Name: "Omit", Type: ast.NewIdent("bool"), Tag: `builder:"ignore"`},
+				{Name: "Omit", Type: ast.NewIdent("bool"), Tag: "`builder:\"ignore\"`"},
 				{Name: "Include", Type: ast.NewIdent("int")},
 			}),
 			Expected:    []_fieldData{{Name: "Include", Type: "int"}},

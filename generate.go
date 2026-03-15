@@ -76,7 +76,8 @@ func getOptions(tag *ast.BasicLit) (_fieldOptions, error) {
 	if tag == nil {
 		return _fieldOptions{}, nil
 	}
-	return parseFieldOptions(reflect.StructTag(tag.Value).Get("builder"))
+	tagValue := strings.Trim(tag.Value, "`")
+	return parseFieldOptions(reflect.StructTag(tagValue).Get("builder"))
 }
 
 func extractFieldData(structType *ast.StructType, fileSet *token.FileSet) ([]_fieldData, error) {
